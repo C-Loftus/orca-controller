@@ -1,3 +1,6 @@
+// Copyright 2025 Colton Loftus
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package main
 
 import (
@@ -23,4 +26,10 @@ func TestGetCommands(t *testing.T) {
 		require.Len(t, cmd, tupleLength)
 
 	}
+}
+
+func TestIntrospectRoot(t *testing.T) {
+	xml, err := introspect_root()
+	require.NoError(t, err)
+	require.NotEmpty(t, xml)
 }

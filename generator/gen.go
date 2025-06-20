@@ -1,7 +1,11 @@
+// Copyright 2025 Colton Loftus
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/dave/jennifer/jen"
@@ -13,8 +17,6 @@ func generate() error {
 	if err != nil {
 		return err
 	}
-
-	modules = append(modules)
 
 	moduleToCommandInfo := make(map[string][][]string)
 	for _, module := range modules {
@@ -59,7 +61,7 @@ func generate() error {
 			file.Func().
 				Params(
 					Id("c").Op("*").Id(module),
-				).Id(functionName).Call().Error().Block(
+				).Id(functionName).Call(Id("notifyUser").Bool()).Error().Block(
 				Id("obj").Op(":=").Id("c").Dot("conn").Dot("Object").Call(
 					Lit(OrcaServiceName),
 					Lit(OrcaObjectPath+"/"+module),
@@ -68,13 +70,15 @@ func generate() error {
 				Id("err").Op(":=").Id("obj").Dot("Call").Call(
 					Lit(OrcaCallMethod),
 					Lit(0),
+					Lit(functionName),
+					Id("notifyUser"),
 				).Dot("Store").Call(Op("&").Id("succeeded")),
 				If(Id("err").Op("!=").Nil()).Block(
 					Return(Id("err")),
 				),
 				If(Id("!succeeded")).Block(
 					Return(Call(
-						Qual("errors", "New").Call(Lit("command failed")))),
+						Id("NewOrcaError").Call(Lit(fmt.Sprintf("command %s failed inside of Orca", functionName))))),
 				),
 				Return(Nil()),
 			)
@@ -83,11 +87,16 @@ func generate() error {
 
 	}
 
-	return file.Save("client.go")
+	return file.Save("generated_client.go")
 }
 
 func main() {
 	if err := generate(); err != nil {
-		panic(err)
+		if strings.Contains(err.Error(), "not provided by any") {
+			fmt.Println("Could not connect to Orca via dbus. Is a version of Orca that supports dbus installed?")
+			panic(err)
+		} else {
+			panic(err)
+		}
 	}
 }
