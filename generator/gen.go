@@ -87,7 +87,7 @@ func generate() error {
 
 	}
 
-	return file.Save("generated_client.go")
+	return file.Save("generated_lib.go")
 }
 
 func main() {

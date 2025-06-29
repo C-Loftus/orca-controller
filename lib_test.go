@@ -13,18 +13,17 @@ func TestSpeechFunctions(t *testing.T) {
 	client, err := NewOrcaClient()
 	require.NoError(t, err)
 	defer client.Close()
-
 	t.Run("TestChangePitch", func(t *testing.T) {
 		err = client.SpeechAndVerbosityManager.InterruptSpeech(true)
 		require.NoError(t, err)
 
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			err = client.PresentMessage("test")
 			require.NoError(t, err)
 			err = client.SpeechAndVerbosityManager.DecreasePitch(true)
 			require.NoError(t, err)
 		}
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			err = client.PresentMessage("test")
 			require.NoError(t, err)
 			err = client.SpeechAndVerbosityManager.IncreasePitch(true)
