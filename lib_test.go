@@ -1,7 +1,7 @@
 // Copyright 2025 Colton Loftus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-package main
+package pkg
 
 import (
 	"testing"

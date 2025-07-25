@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 //go:generate go run ./generator
-package main
+package pkg
 
 import (
 	"github.com/godbus/dbus/v5"
@@ -39,7 +39,7 @@ func NewOrcaClient() (*OrcaClient, error) {
 }
 
 func (c *OrcaClient) Close() {
-	c.conn.Close()
+	_ = c.conn.Close()
 }
 
 // Present a message to the user user Orca's speech and/or
