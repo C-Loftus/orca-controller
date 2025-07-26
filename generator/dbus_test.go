@@ -16,15 +16,26 @@ func TestGetModules(t *testing.T) {
 	require.Contains(t, modules, "SpeechAndVerbosityManager")
 }
 
+func TestGetRuntimeSetters(t *testing.T) {
+	setters, err := list_runtime_setters("SpeechAndVerbosityManager")
+	require.NoError(t, err)
+	require.NotEmpty(t, setters)
+}
+
+func TestListRuntimeGetters(t *testing.T) {
+	getters, err := list_runtime_getters("SpeechAndVerbosityManager")
+	require.NoError(t, err)
+	require.NotEmpty(t, getters)
+}
+
 func TestGetCommands(t *testing.T) {
 	module := "SpeechAndVerbosityManager"
 	commands, err := get_commands_for_module(module)
 	require.NoError(t, err)
 	require.NotEmpty(t, commands)
 	for _, cmd := range commands {
-		const tupleLength = 2
-		require.Len(t, cmd, tupleLength)
-
+		require.NotEmpty(t, cmd.commandName)
+		require.NotEmpty(t, cmd.description)
 	}
 }
 

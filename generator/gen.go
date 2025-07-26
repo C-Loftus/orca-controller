@@ -19,7 +19,7 @@ func generate() error {
 		return err
 	}
 
-	moduleToCommandInfo := make(map[string][][]string)
+	moduleToCommandInfo := make(map[string][]CommandInfo)
 	for _, module := range modules {
 		moduleCommands, err := get_commands_for_module(module)
 		if err != nil {
@@ -56,13 +56,11 @@ func generate() error {
 		)
 
 		for _, cmd := range commandInfo {
-			functionName := cmd[0]
-			functionDescription := cmd[1]
-			file.Comment(functionDescription)
+			file.Comment(cmd.description)
 			file.Func().
 				Params(
 					Id("c").Op("*").Id(module),
-				).Id(functionName).Call(Id("notifyUser").Bool()).Error().Block(
+				).Id(cmd.commandName).Call(Id("notifyUser").Bool()).Error().Block(
 				Id("obj").Op(":=").Id("c").Dot("conn").Dot("Object").Call(
 					Lit(OrcaServiceName),
 					Lit(OrcaObjectPath+"/"+module),
@@ -71,7 +69,7 @@ func generate() error {
 				Id("err").Op(":=").Id("obj").Dot("Call").Call(
 					Lit(OrcaCallMethod),
 					Lit(0),
-					Lit(functionName),
+					Lit(cmd.commandName),
 					Id("notifyUser"),
 				).Dot("Store").Call(Op("&").Id("succeeded")),
 				If(Id("err").Op("!=").Nil()).Block(
@@ -79,7 +77,7 @@ func generate() error {
 				),
 				If(Id("!succeeded")).Block(
 					Return(Call(
-						Id("NewOrcaError").Call(Lit(fmt.Sprintf("command %s failed inside of Orca", functionName))))),
+						Id("NewOrcaError").Call(Lit(fmt.Sprintf("command %s failed inside of Orca", cmd.commandName))))),
 				),
 				Return(Nil()),
 			)

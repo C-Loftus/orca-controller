@@ -57,3 +57,18 @@ func (c *OrcaClient) PresentMessage(message string) error {
 	}
 	return nil
 }
+
+func (c *OrcaClient) GetVersion() (string, error) {
+	obj := c.conn.Object(OrcaServiceName, OrcaObjectPath)
+	var result string
+	// Call the DBus method without arguments
+	err := obj.Call("org.gnome.Orca.Service.GetVersion", 0).Store(&result)
+	if err != nil {
+		return "", err
+	}
+	if result == "" {
+		// Handle the case where the version could not be retrieved
+		return "", NewOrcaError("version could not be retrieved from Orca")
+	}
+	return result, nil
+}

@@ -13,6 +13,8 @@ import (
 const OrcaServiceName = "org.gnome.Orca.Service"
 const OrcaObjectPath = "/org/gnome/Orca/Service"
 const OrcaCallMethod = "org.gnome.Orca.Module.ExecuteCommand"
+const OrcaListRuntimeGetters = "org.gnome.Orca.Module.ListRuntimeGetters"
+const OrcaListRuntimeSetters = "org.gnome.Orca.Module.ListRuntimeSetters"
 
 func get_modules() ([]string, error) {
 
@@ -34,7 +36,66 @@ func get_modules() ([]string, error) {
 	return modules, nil
 }
 
-func get_commands_for_module(module string) ([][]string, error) {
+type CommandInfo struct {
+	commandName string
+	description string
+}
+
+func list_runtime_getters(module string) ([]CommandInfo, error) {
+	conn, err := dbus.ConnectSessionBus()
+	if err != nil {
+		return nil, err
+	}
+
+	moduleObjectPath := OrcaObjectPath + "/" + module
+
+	obj := conn.Object(OrcaServiceName, dbus.ObjectPath(moduleObjectPath))
+	var result [][]interface{}
+	err = obj.Call(OrcaListRuntimeGetters, 0).Store(&result)
+	if err != nil {
+		return nil, err
+	}
+	var setterInfo []CommandInfo
+	for _, item := range result {
+		if item[0] == nil || item[1] == nil || len(item) != 2 {
+			return nil, fmt.Errorf("invalid item in result: %v", item)
+		}
+		setterInfo = append(setterInfo, CommandInfo{
+			commandName: item[0].(string),
+			description: item[1].(string),
+		})
+	}
+	return setterInfo, nil
+}
+
+func list_runtime_setters(module string) ([]CommandInfo, error) {
+	conn, err := dbus.ConnectSessionBus()
+	if err != nil {
+		return nil, err
+	}
+
+	moduleObjectPath := OrcaObjectPath + "/" + module
+
+	obj := conn.Object(OrcaServiceName, dbus.ObjectPath(moduleObjectPath))
+	var result [][]interface{}
+	err = obj.Call(OrcaListRuntimeSetters, 0).Store(&result)
+	if err != nil {
+		return nil, err
+	}
+	var setterInfo []CommandInfo
+	for _, item := range result {
+		if item[0] == nil || item[1] == nil || len(item) != 2 {
+			return nil, fmt.Errorf("invalid item in result: %v", item)
+		}
+		setterInfo = append(setterInfo, CommandInfo{
+			commandName: item[0].(string),
+			description: item[1].(string),
+		})
+	}
+	return setterInfo, nil
+}
+
+func get_commands_for_module(module string) ([]CommandInfo, error) {
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
 		return nil, err
@@ -48,17 +109,20 @@ func get_commands_for_module(module string) ([][]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var resultAsStrings [][]string
+	var resultAsCommandInfo []CommandInfo
 
 	for _, item := range result {
 		if item[0] == nil || item[1] == nil || len(item) != 2 {
 			return nil, fmt.Errorf("invalid item in result: %v", item)
 		}
 
-		resultAsStrings = append(resultAsStrings, []string{item[0].(string), item[1].(string)})
+		resultAsCommandInfo = append(resultAsCommandInfo, CommandInfo{
+			commandName: item[0].(string),
+			description: item[1].(string),
+		})
 	}
 
-	return resultAsStrings, nil
+	return resultAsCommandInfo, nil
 
 }
 

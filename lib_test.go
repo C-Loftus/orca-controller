@@ -38,3 +38,12 @@ func TestSpeechFunctions(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestVersion(t *testing.T) {
+	client, err := NewOrcaClient()
+	require.NoError(t, err)
+	defer client.Close()
+	version, err := client.GetVersion()
+	require.NoError(t, err)
+	require.NotEmpty(t, version)
+}
