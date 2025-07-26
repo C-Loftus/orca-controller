@@ -15,6 +15,8 @@ const OrcaObjectPath = "/org/gnome/Orca/Service"
 const OrcaCallMethod = "org.gnome.Orca.Module.ExecuteCommand"
 const OrcaListRuntimeGetters = "org.gnome.Orca.Module.ListRuntimeGetters"
 const OrcaListRuntimeSetters = "org.gnome.Orca.Module.ListRuntimeSetters"
+const OrcaExecuteRuntimeGetter = "org.gnome.Orca.Module.ExecuteRuntimeGetter"
+const OrcaExecuteRuntimeSetter = "org.gnome.Orca.Module.ExecuteRuntimeSetter"
 
 func get_modules() ([]string, error) {
 
@@ -39,6 +41,12 @@ func get_modules() ([]string, error) {
 type CommandInfo struct {
 	commandName string
 	description string
+	// whether or not the command is a setter
+	// and require an input argument
+	isSetter bool
+	// whether or not the command is a getter
+	// and returns a value
+	isGetter bool
 }
 
 func list_runtime_getters(module string) ([]CommandInfo, error) {
@@ -63,6 +71,7 @@ func list_runtime_getters(module string) ([]CommandInfo, error) {
 		setterInfo = append(setterInfo, CommandInfo{
 			commandName: item[0].(string),
 			description: item[1].(string),
+			isGetter:    true,
 		})
 	}
 	return setterInfo, nil
@@ -90,6 +99,7 @@ func list_runtime_setters(module string) ([]CommandInfo, error) {
 		setterInfo = append(setterInfo, CommandInfo{
 			commandName: item[0].(string),
 			description: item[1].(string),
+			isSetter:    true,
 		})
 	}
 	return setterInfo, nil
