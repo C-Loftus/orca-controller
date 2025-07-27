@@ -9,8 +9,117 @@ import (
 	"time"
 
 	// nolint:staticcheck
+	//lint:ignore ST1001 allow for . import since otherwise the gen becomes overly verbose
 	. "github.com/dave/jennifer/jen"
 )
+
+func generate_method_for_command(cmd CommandInfo, module string, file *File) {
+	file.Comment(cmd.description)
+
+	if cmd.isGetter {
+		file.Func().
+			Params(
+				Id("c").Op("*").Id(module),
+			).Id(cmd.commandName).Call().Params(Any(), Error()).Block(
+			Id("obj").Op(":=").Id("c").Dot("conn").Dot("Object").Call(
+				Lit(OrcaServiceName),
+				Lit(OrcaObjectPath+"/"+module),
+			),
+			Var().Id("result").Id("any"),
+			Id("err").Op(":=").Id("obj").Dot("Call").Call(
+				Lit(OrcaExecuteRuntimeGetter),
+				Lit(0),
+				Lit(cmd.commandName),
+			).Dot("Store").Call(Op("&").Id("result")),
+			If(Id("err").Op("!=").Nil()).Block(
+				Return(Lit(""), Id("err")),
+			),
+			Return(Id("result"), Nil()),
+		)
+
+	} else if cmd.isSetter {
+		file.Func().
+			Params(
+				Id("c").Op("*").Id(module),
+				// we must use the custom name here since otherwise the
+				// getter and the setter would have the same name
+				//  and cause a compile error
+			).Id(cmd.customName).Call(Id("input").Any()).Error().Block(
+			Id("obj").Op(":=").Id("c").Dot("conn").Dot("Object").Call(
+				Lit(OrcaServiceName),
+				Lit(OrcaObjectPath+"/"+module),
+			),
+			Var().Id("succeeded").Id("bool"),
+			Id("arg").Op(":=").Id("v5").Dot("MakeVariant").Call(Id("input")),
+			Id("err").Op(":=").Id("obj").Dot("Call").Call(
+				Lit(OrcaExecuteRuntimeSetter),
+				Lit(0),
+				Lit(cmd.commandName),
+				Id("arg"),
+			).Dot("Store").Call(Op("&").Id("succeeded")),
+			If(Id("err").Op("!=").Nil()).Block(
+				Return(Id("err")),
+			),
+			If(Id("!succeeded")).Block(
+				Return(Call(
+					Id("NewOrcaError").Call(Lit(fmt.Sprintf("command %s failed inside of Orca", cmd.commandName))))),
+			),
+			Return(Nil()),
+		)
+	} else {
+		file.Func().
+			Params(
+				Id("c").Op("*").Id(module),
+			).Id(cmd.commandName).Call(Id("notifyUser").Bool()).Error().Block(
+			Id("obj").Op(":=").Id("c").Dot("conn").Dot("Object").Call(
+				Lit(OrcaServiceName),
+				Lit(OrcaObjectPath+"/"+module),
+			),
+			Var().Id("succeeded").Id("bool"),
+			Id("err").Op(":=").Id("obj").Dot("Call").Call(
+				Lit(OrcaCallMethod),
+				Lit(0),
+				Lit(cmd.commandName),
+				Id("notifyUser"),
+			).Dot("Store").Call(Op("&").Id("succeeded")),
+			If(Id("err").Op("!=").Nil()).Block(
+				Return(Id("err")),
+			),
+			If(Id("!succeeded")).Block(
+				Return(Call(
+					Id("NewOrcaError").Call(Lit(fmt.Sprintf("command %s failed inside of Orca", cmd.commandName))))),
+			),
+			Return(Nil()),
+		)
+	}
+}
+
+func get_all_commands_per_module(modules []string) (map[string][]CommandInfo, error) {
+	moduleToCommandInfo := make(map[string][]CommandInfo)
+	for _, module := range modules {
+		moduleCommands, err := get_commands_for_module(module)
+		if err != nil {
+			return nil, err
+		}
+		moduleToCommandInfo[module] = moduleCommands
+
+		// runtime getters don't get in any args and thus can be added like other commands
+		// for the module
+		runtimeGetters, err := list_runtime_getters(module)
+		if err != nil {
+			return nil, err
+		}
+
+		runtimeSetters, err := list_runtime_setters(module)
+		if err != nil {
+			return nil, err
+		}
+
+		moduleToCommandInfo[module] = append(moduleToCommandInfo[module], runtimeGetters...)
+		moduleToCommandInfo[module] = append(moduleToCommandInfo[module], runtimeSetters...)
+	}
+	return moduleToCommandInfo, nil
+}
 
 func generate() error {
 
@@ -19,13 +128,9 @@ func generate() error {
 		return err
 	}
 
-	moduleToCommandInfo := make(map[string][]CommandInfo)
-	for _, module := range modules {
-		moduleCommands, err := get_commands_for_module(module)
-		if err != nil {
-			return err
-		}
-		moduleToCommandInfo[module] = moduleCommands
+	moduleToCommandInfo, err := get_all_commands_per_module(modules)
+	if err != nil {
+		return err
 	}
 
 	file := NewFile("pkg")
@@ -56,34 +161,8 @@ func generate() error {
 		)
 
 		for _, cmd := range commandInfo {
-			file.Comment(cmd.description)
-			file.Func().
-				Params(
-					Id("c").Op("*").Id(module),
-				).Id(cmd.commandName).Call(Id("notifyUser").Bool()).Error().Block(
-				Id("obj").Op(":=").Id("c").Dot("conn").Dot("Object").Call(
-					Lit(OrcaServiceName),
-					Lit(OrcaObjectPath+"/"+module),
-				),
-				Var().Id("succeeded").Id("bool"),
-				Id("err").Op(":=").Id("obj").Dot("Call").Call(
-					Lit(OrcaCallMethod),
-					Lit(0),
-					Lit(cmd.commandName),
-					Id("notifyUser"),
-				).Dot("Store").Call(Op("&").Id("succeeded")),
-				If(Id("err").Op("!=").Nil()).Block(
-					Return(Id("err")),
-				),
-				If(Id("!succeeded")).Block(
-					Return(Call(
-						Id("NewOrcaError").Call(Lit(fmt.Sprintf("command %s failed inside of Orca", cmd.commandName))))),
-				),
-				Return(Nil()),
-			)
-
+			generate_method_for_command(cmd, module, file)
 		}
-
 	}
 
 	return file.Save("generated_lib.go")

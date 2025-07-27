@@ -47,3 +47,25 @@ func TestVersion(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, version)
 }
+
+func TestGetters(t *testing.T) {
+	client, err := NewOrcaClient()
+	require.NoError(t, err)
+	defer client.Close()
+	rate, err := client.SpeechAndVerbosityManager.Rate()
+	require.NoError(t, err)
+	require.Greater(t, rate, float64(0))
+}
+
+func TestGetThenSet(t *testing.T) {
+	client, err := NewOrcaClient()
+	require.NoError(t, err)
+	defer client.Close()
+
+	rate, err := client.SpeechAndVerbosityManager.Rate()
+	require.NoError(t, err)
+	require.NotEmpty(t, rate)
+
+	err = client.SpeechAndVerbosityManager.SetRate(rate)
+	require.NoError(t, err)
+}

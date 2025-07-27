@@ -10,12 +10,18 @@ import (
 	"github.com/godbus/dbus/v5"
 )
 
-const OrcaServiceName = "org.gnome.Orca.Service"
-const OrcaObjectPath = "/org/gnome/Orca/Service"
-const OrcaCallMethod = "org.gnome.Orca.Module.ExecuteCommand"
-const OrcaListRuntimeGetters = "org.gnome.Orca.Module.ListRuntimeGetters"
-const OrcaListRuntimeSetters = "org.gnome.Orca.Module.ListRuntimeSetters"
+// Constants used for dbus calls
+const (
+	OrcaServiceName          = "org.gnome.Orca.Service"
+	OrcaObjectPath           = "/org/gnome/Orca/Service"
+	OrcaCallMethod           = "org.gnome.Orca.Module.ExecuteCommand"
+	OrcaListRuntimeGetters   = "org.gnome.Orca.Module.ListRuntimeGetters"
+	OrcaListRuntimeSetters   = "org.gnome.Orca.Module.ListRuntimeSetters"
+	OrcaExecuteRuntimeGetter = "org.gnome.Orca.Module.ExecuteRuntimeGetter"
+	OrcaExecuteRuntimeSetter = "org.gnome.Orca.Module.ExecuteRuntimeSetter"
+)
 
+// Get the name of every module registered inside ORca
 func get_modules() ([]string, error) {
 
 	conn, err := dbus.ConnectSessionBus()
@@ -36,11 +42,24 @@ func get_modules() ([]string, error) {
 	return modules, nil
 }
 
+// Contains information about a dbus command
 type CommandInfo struct {
+	// the name of the command as returned from dbus introspection
 	commandName string
+	// the custom or unique name of the command; used in generated code
+	// to prevent collisions with other commands of the same name
+	customName string
+	// the description of the command as returned from dbus introspection
 	description string
+	// whether or not the command is a setter
+	// and require an input argument
+	isSetter bool
+	// whether or not the command is a getter
+	// and returns a value
+	isGetter bool
 }
 
+// List all the runtime getters for a module; i.e. commands which return a value
 func list_runtime_getters(module string) ([]CommandInfo, error) {
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
@@ -50,7 +69,7 @@ func list_runtime_getters(module string) ([]CommandInfo, error) {
 	moduleObjectPath := OrcaObjectPath + "/" + module
 
 	obj := conn.Object(OrcaServiceName, dbus.ObjectPath(moduleObjectPath))
-	var result [][]interface{}
+	var result [][]any
 	err = obj.Call(OrcaListRuntimeGetters, 0).Store(&result)
 	if err != nil {
 		return nil, err
@@ -63,11 +82,13 @@ func list_runtime_getters(module string) ([]CommandInfo, error) {
 		setterInfo = append(setterInfo, CommandInfo{
 			commandName: item[0].(string),
 			description: item[1].(string),
+			isGetter:    true,
 		})
 	}
 	return setterInfo, nil
 }
 
+// List all the runtime setters for a module; i.e. commands which take an argument
 func list_runtime_setters(module string) ([]CommandInfo, error) {
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
@@ -77,7 +98,7 @@ func list_runtime_setters(module string) ([]CommandInfo, error) {
 	moduleObjectPath := OrcaObjectPath + "/" + module
 
 	obj := conn.Object(OrcaServiceName, dbus.ObjectPath(moduleObjectPath))
-	var result [][]interface{}
+	var result [][]any
 	err = obj.Call(OrcaListRuntimeSetters, 0).Store(&result)
 	if err != nil {
 		return nil, err
@@ -88,13 +109,17 @@ func list_runtime_setters(module string) ([]CommandInfo, error) {
 			return nil, fmt.Errorf("invalid item in result: %v", item)
 		}
 		setterInfo = append(setterInfo, CommandInfo{
+			customName:  fmt.Sprintf("Set%s", item[0].(string)),
 			commandName: item[0].(string),
 			description: item[1].(string),
+			isSetter:    true,
 		})
 	}
 	return setterInfo, nil
 }
 
+// List all the commands for a module; i.e. commands which semantically
+// change the state of the module somehow but are not runtime setters/getters
 func get_commands_for_module(module string) ([]CommandInfo, error) {
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
@@ -104,7 +129,7 @@ func get_commands_for_module(module string) ([]CommandInfo, error) {
 	moduleObjectPath := OrcaObjectPath + "/" + module
 
 	obj := conn.Object(OrcaServiceName, dbus.ObjectPath(moduleObjectPath))
-	var result [][]interface{}
+	var result [][]any
 	err = obj.Call("org.gnome.Orca.Module.ListCommands", 0).Store(&result)
 	if err != nil {
 		return nil, err
