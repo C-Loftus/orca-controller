@@ -9,6 +9,7 @@ import (
 	"time"
 
 	// nolint:staticcheck
+	//lint:ignore ST1001 allow for . import since otherwise the gen becomes overly verbose
 	. "github.com/dave/jennifer/jen"
 )
 
@@ -40,6 +41,9 @@ func generate_method_for_command(cmd CommandInfo, module string, file *File) {
 		file.Func().
 			Params(
 				Id("c").Op("*").Id(module),
+				// we must use the custom name here since otherwise the
+				// getter and the setter would have the same name
+				//  and cause a compile error
 			).Id(cmd.customName).Call(Id("input").Any()).Error().Block(
 			Id("obj").Op(":=").Id("c").Dot("conn").Dot("Object").Call(
 				Lit(OrcaServiceName),
@@ -90,18 +94,12 @@ func generate_method_for_command(cmd CommandInfo, module string, file *File) {
 	}
 }
 
-func generate() error {
-
-	modules, err := get_modules()
-	if err != nil {
-		return err
-	}
-
+func get_all_commands_per_module(modules []string) (map[string][]CommandInfo, error) {
 	moduleToCommandInfo := make(map[string][]CommandInfo)
 	for _, module := range modules {
 		moduleCommands, err := get_commands_for_module(module)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		moduleToCommandInfo[module] = moduleCommands
 
@@ -109,16 +107,30 @@ func generate() error {
 		// for the module
 		runtimeGetters, err := list_runtime_getters(module)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		runtimeSetters, err := list_runtime_setters(module)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		moduleToCommandInfo[module] = append(moduleToCommandInfo[module], runtimeGetters...)
 		moduleToCommandInfo[module] = append(moduleToCommandInfo[module], runtimeSetters...)
+	}
+	return moduleToCommandInfo, nil
+}
+
+func generate() error {
+
+	modules, err := get_modules()
+	if err != nil {
+		return err
+	}
+
+	moduleToCommandInfo, err := get_all_commands_per_module(modules)
+	if err != nil {
+		return err
 	}
 
 	file := NewFile("pkg")
