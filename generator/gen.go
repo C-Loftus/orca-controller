@@ -19,17 +19,16 @@ func generate_method_for_command(cmd CommandInfo, module string, file *File) {
 		file.Func().
 			Params(
 				Id("c").Op("*").Id(module),
-			).Id(cmd.commandName).Call(Id("notifyUser").Bool()).Params(String(), Error()).Block(
+			).Id(cmd.commandName).Call().Params(Any(), Error()).Block(
 			Id("obj").Op(":=").Id("c").Dot("conn").Dot("Object").Call(
 				Lit(OrcaServiceName),
 				Lit(OrcaObjectPath+"/"+module),
 			),
-			Var().Id("result").Id("string"),
+			Var().Id("result").Id("any"),
 			Id("err").Op(":=").Id("obj").Dot("Call").Call(
 				Lit(OrcaExecuteRuntimeGetter),
 				Lit(0),
 				Lit(cmd.commandName),
-				Id("notifyUser"),
 			).Dot("Store").Call(Op("&").Id("result")),
 			If(Id("err").Op("!=").Nil()).Block(
 				Return(Lit(""), Id("err")),
@@ -38,7 +37,31 @@ func generate_method_for_command(cmd CommandInfo, module string, file *File) {
 		)
 
 	} else if cmd.isSetter {
-		return
+		file.Func().
+			Params(
+				Id("c").Op("*").Id(module),
+			).Id(cmd.customName).Call(Id("input").Any()).Error().Block(
+			Id("obj").Op(":=").Id("c").Dot("conn").Dot("Object").Call(
+				Lit(OrcaServiceName),
+				Lit(OrcaObjectPath+"/"+module),
+			),
+			Var().Id("succeeded").Id("bool"),
+			Id("arg").Op(":=").Id("v5").Dot("MakeVariant").Call(Id("input")),
+			Id("err").Op(":=").Id("obj").Dot("Call").Call(
+				Lit(OrcaExecuteRuntimeSetter),
+				Lit(0),
+				Lit(cmd.commandName),
+				Id("arg"),
+			).Dot("Store").Call(Op("&").Id("succeeded")),
+			If(Id("err").Op("!=").Nil()).Block(
+				Return(Id("err")),
+			),
+			If(Id("!succeeded")).Block(
+				Return(Call(
+					Id("NewOrcaError").Call(Lit(fmt.Sprintf("command %s failed inside of Orca", cmd.commandName))))),
+			),
+			Return(Nil()),
+		)
 	} else {
 		file.Func().
 			Params(
@@ -88,7 +111,14 @@ func generate() error {
 		if err != nil {
 			return err
 		}
+
+		runtimeSetters, err := list_runtime_setters(module)
+		if err != nil {
+			return err
+		}
+
 		moduleToCommandInfo[module] = append(moduleToCommandInfo[module], runtimeGetters...)
+		moduleToCommandInfo[module] = append(moduleToCommandInfo[module], runtimeSetters...)
 	}
 
 	file := NewFile("pkg")

@@ -39,7 +39,12 @@ func get_modules() ([]string, error) {
 }
 
 type CommandInfo struct {
+	// the name of the command as returned from dbus introspection
 	commandName string
+	// the custom or unique name of the command; used in generated code
+	// to prevent collisions with other commands of the same name
+	customName string
+	// the description of the command as returned from dbus introspection
 	description string
 	// whether or not the command is a setter
 	// and require an input argument
@@ -58,7 +63,7 @@ func list_runtime_getters(module string) ([]CommandInfo, error) {
 	moduleObjectPath := OrcaObjectPath + "/" + module
 
 	obj := conn.Object(OrcaServiceName, dbus.ObjectPath(moduleObjectPath))
-	var result [][]interface{}
+	var result [][]any
 	err = obj.Call(OrcaListRuntimeGetters, 0).Store(&result)
 	if err != nil {
 		return nil, err
@@ -86,7 +91,7 @@ func list_runtime_setters(module string) ([]CommandInfo, error) {
 	moduleObjectPath := OrcaObjectPath + "/" + module
 
 	obj := conn.Object(OrcaServiceName, dbus.ObjectPath(moduleObjectPath))
-	var result [][]interface{}
+	var result [][]any
 	err = obj.Call(OrcaListRuntimeSetters, 0).Store(&result)
 	if err != nil {
 		return nil, err
@@ -97,6 +102,7 @@ func list_runtime_setters(module string) ([]CommandInfo, error) {
 			return nil, fmt.Errorf("invalid item in result: %v", item)
 		}
 		setterInfo = append(setterInfo, CommandInfo{
+			customName:  fmt.Sprintf("Set%s", item[0].(string)),
 			commandName: item[0].(string),
 			description: item[1].(string),
 			isSetter:    true,
@@ -114,7 +120,7 @@ func get_commands_for_module(module string) ([]CommandInfo, error) {
 	moduleObjectPath := OrcaObjectPath + "/" + module
 
 	obj := conn.Object(OrcaServiceName, dbus.ObjectPath(moduleObjectPath))
-	var result [][]interface{}
+	var result [][]any
 	err = obj.Call("org.gnome.Orca.Module.ListCommands", 0).Store(&result)
 	if err != nil {
 		return nil, err
